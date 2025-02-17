@@ -1,5 +1,5 @@
 const express = require('express');
-const puppeteer = require('puppeteer-core');
+const puppeteer = require('puppeteer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,10 +11,9 @@ app.get('/gamepasses', async (req, res) => {
             return res.status(400).json({ error: 'Missing gameId parameter' });
         }
 
-        const browser = await puppeteer.launch({
-            executablePath: '/usr/bin/google-chrome-stable', // Используем системный Chrome
-            headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+       const browser = await puppeteer.launch({
+          executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
+          args: ["--no-sandbox", "--disable-setuid-sandbox"]
         });
 
         const page = await browser.newPage();
