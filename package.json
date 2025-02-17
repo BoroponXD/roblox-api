@@ -23,3 +23,6 @@
     "wrangler": "^3.109.1"
   }
 }
+"scripts": {
+  "postinstall": "apt-get update && apt-get install -y chromium"
+}
