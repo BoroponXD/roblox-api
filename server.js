@@ -1,80 +1,48 @@
-const express = require("express");
-const axios = require("axios");
-const puppeteer = require("puppeteer");
+const express = require('express');
+const puppeteer = require('puppeteer');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
-
-async function getUserPlaces(userId) {
+app.get('/gamepasses', async (req, res) => {
     try {
-        const url = `https://games.roblox.com/v2/users/${userId}/games?accessFilter=Public`;
-        const { data } = await axios.get(url);
-        
-        // Достаем rootPlace.id вместо id
-        return data.data.map(game => game.rootPlace.id);
-    } catch (error) {
-        console.error("Ошибка при получении плейсов:", error);
-        return [];
-    }
-}
+        const { gameId } = req.query;
+        if (!gameId) {
+            return res.status(400).json({ error: 'Missing gameId parameter' });
+        }
 
-async function getGamePasses(gameId) {
-    const url = `https://www.roblox.com/games/${gameId}#!/store`;
-    const browser = await puppeteer.launch({ headless: true });
-    const page = await browser.newPage();
-
-    await page.goto(url, { waitUntil: "networkidle2" });
-
-    // Ждем загрузки карточек
-    await page.waitForSelector(".store-card", { timeout: 5000 }).catch(() => {});
-
-    const gamePasses = await page.evaluate(() => {
-        return Array.from(document.querySelectorAll(".store-card")).map(card => {
-            const link = card.querySelector("a")?.getAttribute("href");
-            const idMatch = link?.match(/\/game-pass\/(\d+)\//);
-            const id = idMatch ? idMatch[1] : null;
-
-            return {
-                id,
-                name: card.querySelector(".store-card-name")?.getAttribute("title") || "Неизвестно",
-                price: card.querySelector(".text-robux")?.innerText.trim() || "0",
-                image: card.querySelector("img")?.getAttribute("src") || "Нет изображения"
-            };
+        const browser = await puppeteer.launch({
+            headless: 'new',
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
         });
-    });
 
-    await browser.close();
-    return gamePasses;
-}
+        const page = await browser.newPage();
+        const url = `https://www.roblox.com/games/${gameId}/#!/store`;
+        await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-app.get("/get-gamepasses/:userId", async (req, res) => {
-    const userId = req.params.userId;
-    
-    if (!userId) {
-        return res.status(400).json({ error: "User ID не указан" });
+        const gamepasses = await page.evaluate(() => {
+            const items = [];
+            document.querySelectorAll('.store-card').forEach(card => {
+                const id = card.querySelector('a')?.href.match(/game-pass\/(\d+)/)?.[1];
+                const name = card.querySelector('.text-overflow.store-card-name')?.getAttribute('title');
+                const price = card.querySelector('.store-card-price .text-robux')?.textContent.trim();
+                const img = card.querySelector('img')?.src;
+
+                if (id && name && price && img) {
+                    items.push({ id, name, price, img });
+                }
+            });
+            return items;
+        });
+
+        await browser.close();
+        res.json({ success: true, gamepasses });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, error: error.message });
     }
-
-    console.log(`Получаем геймпассы для пользователя ${userId}`);
-
-    // 1. Получаем публичные плейсы
-    const places = await getUserPlaces(userId);
-    if (places.length === 0) {
-        return res.json({ error: "У пользователя нет публичных плейсов" });
-    }
-
-    // 2. Парсим геймпассы каждого плейса
-    let allGamePasses = [];
-    for (const placeId of places) {
-        console.log(`Парсим геймпассы для плейса ${placeId}...`);
-        const gamePasses = await getGamePasses(placeId);
-        allGamePasses.push(...gamePasses);
-    }
-
-    res.json({ userId, gamePasses: allGamePasses });
 });
 
 app.listen(PORT, () => {
-    console.log(`Сервер запущен на http://localhost:${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });
