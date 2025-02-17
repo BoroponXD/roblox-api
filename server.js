@@ -1,5 +1,5 @@
 const express = require('express');
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,7 +12,8 @@ app.get('/gamepasses', async (req, res) => {
         }
 
         const browser = await puppeteer.launch({
-            headless: 'new',
+            executablePath: '/usr/bin/google-chrome-stable', // Используем системный Chrome
+            headless: true,
             args: ['--no-sandbox', '--disable-setuid-sandbox']
         });
 
